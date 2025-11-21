@@ -1,0 +1,175 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama-server
+    ports:
+      - "11434:11434"
+    volumes:
+      # Persist Ollama models and data
+      - ollama-data:/root/.ollama
+    restart: unless-stopped
+    healthcheck:
+      # Use ollama CLI to check if server is ready
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  permission-check:
+    image: alpine:latest
+    container_name: permission-check
+    user: "1000:1000"
+    volumes:
+      - ./outputs:/app/outputs:rw
+    command:
+      - /bin/sh
+      - -c
+      - |
+        echo "=========================================="
+        echo "Checking outputs directory permissions..."
+        echo "=========================================="
+        
+        # Ensure directories exist
+        mkdir -p /app/outputs/logs /app/outputs/plots /app/outputs/reports 2>/dev/null || true
+        
+        test_dirs="/app/outputs /app/outputs/logs /app/outputs/plots /app/outputs/reports"
+        all_ok=true
+        failed_dirs=""
+        
+        for dir in $$test_dirs; do
+          if touch "$$dir/.write_test" 2>/dev/null; then
+            rm -f "$$dir/.write_test" 2>/dev/null || true
+            echo "✓ $$dir is writable"
+          else
+            echo "✗ $$dir is NOT writable"
+            all_ok=false
+            failed_dirs="$$failed_dirs $$dir"
+          fi
+        done
+        
+        if [ "$$all_ok" = "false" ]; then
+          echo ""
+          echo "=========================================="
+          echo "PERMISSION ERROR DETECTED"
+          echo "=========================================="
+          echo "The following directories are not writable by UID 1000:"
+          echo "$$failed_dirs"
+          echo ""
+          echo "QUICK FIX - Run one of these commands on your host:"
+          echo ""
+          echo "  Option 1 (Recommended):"
+          echo "    ./scripts/fix-permissions.sh"
+          echo ""
+          echo "  Option 2 (Manual):"
+          echo "    sudo chown -R 1000:1000 ./outputs"
+          echo ""
+          echo "  Option 3 (Quick but less secure):"
+          echo "    sudo chmod -R 777 ./outputs"
+          echo ""
+          echo "After fixing permissions, run: docker-compose up"
+          echo "=========================================="
+          exit 1
+        else
+          echo ""
+          echo "✓ All directories are writable! Proceeding..."
+          echo "=========================================="
+        fi
+    restart: "no"
+
+  ollama-init:
+    image: curlimages/curl:latest
+    container_name: ollama-init
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - MODEL=${LLM_MODEL:-granite4:latest}
+    command:
+      - /bin/sh
+      - -c
+      - |
+        echo "Waiting for Ollama to be ready..."
+        for i in $$(seq 1 30); do
+          if curl -f "$$OLLAMA_HOST/api/tags" > /dev/null 2>&1; then
+            echo "Ollama is ready!"
+            break
+          fi
+          echo "Attempt $$i/30: Waiting for Ollama..."
+          sleep 2
+        done
+        
+        echo "Checking if model $$MODEL is already available..."
+        if curl -f "$$OLLAMA_HOST/api/show" -d "{\"name\": \"$$MODEL\"}" > /dev/null 2>&1; then
+          echo "Model $$MODEL is already available"
+        else
+          echo "Pulling model $$MODEL..."
+          curl -X POST "$$OLLAMA_HOST/api/pull" -d "{\"name\": \"$$MODEL\"}"
+          echo ""
+          echo "Model $$MODEL pulled successfully!"
+        fi
+    restart: "no"
+
+  llm-report-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: llm-report-generation
+    depends_on:
+      permission-check:
+        condition: service_completed_successfully
+      ollama:
+        condition: service_healthy
+      ollama-init:
+        condition: service_completed_successfully
+    ports:
+      - "8501:8501"
+    volumes:
+      # Mount data directory for input files
+      - ./data:/app/data:ro
+      # Mount outputs directory to persist generated reports
+      - ./outputs:/app/outputs
+    environment:
+      # LLM Provider Configuration
+      - LLM_PROVIDER=${LLM_PROVIDER:-ollama}
+      - LLM_MODEL=${LLM_MODEL:-granite4:latest}
+      - LLM_TEMPERATURE=${LLM_TEMPERATURE:-0.7}
+      - LLM_MAX_TOKENS=${LLM_MAX_TOKENS:-4096}
+      
+      # Ollama Configuration - use service name for internal Docker network
+      # Note: pydantic-settings uses double underscore for nested fields
+      - LLM__OLLAMA_HOST=${LLM__OLLAMA_HOST:-http://ollama:11434}
+      
+      # API Keys (set these in .env file)
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      
+      # Application Settings
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - DEBUG=${DEBUG:-false}
+      
+      # Logging Settings
+      # File logging disabled by default in Docker (use 'docker logs' instead)
+      # Set LOGGING__LOG_TO_FILE=true and ensure ./outputs/logs is writable if needed
+      - LOGGING__LOG_TO_FILE=${LOGGING__LOG_TO_FILE:-false}
+      - LOGGING__LOG_TO_CONSOLE=${LOGGING__LOG_TO_CONSOLE:-true}
+      
+      # Report Settings
+      - REPORT_GENERATE_PDF=${REPORT_GENERATE_PDF:-true}
+      - REPORT_GENERATE_HTML=${REPORT_GENERATE_HTML:-true}
+      - REPORT_GENERATE_WORD=${REPORT_GENERATE_WORD:-false}
+      - REPORT_GENERATE_MARKDOWN=${REPORT_GENERATE_MARKDOWN:-true}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  ollama-data:
+    driver: local
+

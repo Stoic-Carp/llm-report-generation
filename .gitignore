@@ -1,0 +1,76 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment variables
+.env
+.env.local
+
+# Outputs
+outputs/
+*.pdf
+*.html
+*.docx
+*.md
+*.png
+*.jpg
+*.svg
+
+# Logs
+*.log
+logs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Data (keep structure, ignore actual data files)
+data/raw/*.xlsx
+data/raw/*.xls
+data/raw/*.csv
+!data/raw/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+uv.lock
+.python-version
