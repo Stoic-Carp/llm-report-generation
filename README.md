@@ -6,7 +6,7 @@ An intelligent reporting system that uses **LangGraph** and **LLMs** to automati
 
 The application uses a **LangGraph-based agent orchestration** workflow to process sales data through multiple intelligent stages:
 
-![Agent Orchestration Flow](agent-graph.png)
+![Agent Orchestration Flow](agent-graph.png?raw=true)
 
 The workflow consists of the following stages:
 
