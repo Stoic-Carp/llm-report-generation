@@ -56,7 +56,7 @@ The recommended way to run the application is using `uv`:
 
 1. **Clone the repository:**
 ```bash
-git clone <repository-url>
+git clone https://github.com/Stoic-Carp/llm-report-generation.git
 cd llm-report-generation
 ```
 
