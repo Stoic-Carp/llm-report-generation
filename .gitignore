@@ -38,11 +38,8 @@ ENV/
 .env.local
 
 # Outputs
-outputs/
-*.pdf
 *.html
 *.docx
-*.md
 *.png
 *.jpg
 *.svg
@@ -61,10 +58,7 @@ htmlcov/
 .ipynb_checkpoints/
 *.ipynb
 
-# Data (keep structure, ignore actual data files)
-data/raw/*.xlsx
-data/raw/*.xls
-data/raw/*.csv
+# Data (keep structure)
 !data/raw/.gitkeep
 
 # OS
